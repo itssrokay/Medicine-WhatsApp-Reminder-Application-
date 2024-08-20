@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import axios from 'axios';
 import './Gpt.css'; // Make sure to create this CSS file
+import { AuthContext } from './AuthContext';
 
 const Gpt = ({ onReminderAdded }) => {
+  const { authState } = useContext(AuthContext);
   const [photo, setPhoto] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -18,23 +20,29 @@ const Gpt = ({ onReminderAdded }) => {
       alert('Please select an image first');
       return;
     }
-
+  
     setIsLoading(true);
     const formData = new FormData();
     formData.append('photo', photo);
-
+  
     try {
       const res = await axios.post("http://localhost:9000/generateReminder", formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { 
+          'Content-Type': 'multipart/form-data',
+          'Authorization': `Bearer ${authState.token}`  // Add this line
+        }
       });
-
+  
       console.log("Response from server:", res.data);
       
       // Add the generated reminder
       const { reminderMsg, remindAt } = res.data.reminder;
-      await axios.post("http://localhost:9000/addReminder", { reminderMsg, remindAt });
+      await axios.post("http://localhost:9000/addReminder", 
+        { reminderMsg, remindAt },
+        { headers: { Authorization: `Bearer ${authState.token}` } }  // Add this line
+      );
       
-      onReminderAdded(); // Refresh the reminder list
+      onReminderAdded();
       setPhoto(null);
       setPreviewUrl(null);
       alert(`Reminder added: ${reminderMsg} at ${new Date(remindAt).toLocaleString()}`);

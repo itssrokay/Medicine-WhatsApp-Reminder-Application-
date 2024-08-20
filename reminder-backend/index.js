@@ -1,12 +1,14 @@
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
+const bcrypt = require('bcrypt');
 const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
 // const fs = require('fs');
 const { OpenAI } = require('openai');
 const fs = require('fs').promises;
+const User = require('./userModel');
 
 // App config
 const app = express();
@@ -31,9 +33,12 @@ const reminderSchema = new mongoose.Schema({
   reminderMsg: String,
   remindAt: String,
   isReminded: Boolean,
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }
 });
 
 const Reminder = new mongoose.model('reminder', reminderSchema);
+
+
 
 // Multer config
 const storage = multer.diskStorage({
@@ -65,19 +70,40 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+const jwt = require('jsonwebtoken'); // Add this at the top of your file
+
+app.post('/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({ message: 'User not found' });
+    }
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Invalid credentials' });
+    }
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    res.json({ token, user: { id: user._id, name: user.name, email: user.email, role: user.role } });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // Serve uploaded files statically
 app.use('/uploads', express.static('uploads'));
 
 // API routes
-app.get('/getAllReminder', (req, res) => {
-  Reminder.find({}, (err, reminderList) => {
-    if (err) {
-      console.log(err);
-      res.status(500).send('Error fetching reminders');
-    } else {
-      res.send(reminderList);
-    }
-  });
+app.get('/getAllReminder', async (req, res) => {
+  const { userId } = req.query;
+  try {
+    const reminderList = await Reminder.find({ userId });
+    res.json(reminderList);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Error fetching reminders');
+  }
 });
 
 app.post('/generateReminder', upload.single('photo'), async (req, res) => {
@@ -135,28 +161,22 @@ app.post('/generateReminder', upload.single('photo'), async (req, res) => {
   }
 });
 
-app.post('/addReminder', (req, res) => {
-  const { reminderMsg, remindAt } = req.body;
+app.post('/addReminder', async (req, res) => {
+  const { reminderMsg, remindAt, userId } = req.body;
   const reminder = new Reminder({
     reminderMsg,
     remindAt,
     isReminded: false,
+    userId
   });
-  reminder.save((err, savedReminder) => {
-    if (err) {
-      console.log(err);
-      res.status(500).send('Error saving reminder');
-    } else {
-      Reminder.find({}, (err, reminderList) => {
-        if (err) {
-          console.log(err);
-          res.status(500).send('Error fetching reminders');
-        } else {
-          res.send(reminderList);
-        }
-      });
-    }
-  });
+  try {
+    await reminder.save();
+    const reminderList = await Reminder.find({ userId });
+    res.json(reminderList);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Error saving reminder');
+  }
 });
 
 app.post('/deleteReminder', (req, res) => {
@@ -176,7 +196,35 @@ app.post('/deleteReminder', (req, res) => {
     }
   });
 });
+app.post('/signup', async (req, res) => {
+  try {
+    const { name, email, password, role } = req.body;
+    
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: 'User already exists' });
+    }
 
+    // Hash the password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create new user
+    const newUser = new User({
+      name,
+      email,
+      password: hashedPassword,
+      role
+    });
+
+    await newUser.save();
+
+    res.status(201).json({ message: 'User created successfully' });
+  } catch (error) {
+    console.error('Signup error:', error);
+    res.status(500).json({ message: 'Error creating user', error: error.message });
+  }
+});
 // Existing reminder checking functionality
 setInterval(() => {
   Reminder.find({}, (err, reminderList) => {
