@@ -3,10 +3,10 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const multer = require('multer');
-const OpenAI = require('openai');
 const path = require('path');
-const fs = require('fs');
-
+// const fs = require('fs');
+const { OpenAI } = require('openai');
+const fs = require('fs').promises;
 
 // App config
 const app = express();
@@ -42,15 +42,31 @@ const storage = multer.diskStorage({
   },
   filename: (req, file, cb) => {
     cb(null, Date.now() + path.extname(file.originalname));
-  },
+  }
 });
 
-const upload = multer({ storage: storage });
+const upload = multer({
+  storage: storage,
+  fileFilter: (req, file, cb) => {
+    const fileTypes = /jpeg|jpg|png/;
+    const extname = fileTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = fileTypes.test(file.mimetype);
+
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb("Error: Images Only!");
+    }
+  }
+});
 
 // OpenAI config
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+
+// Serve uploaded files statically
+app.use('/uploads', express.static('uploads'));
 
 // API routes
 app.get('/getAllReminder', (req, res) => {
@@ -65,61 +81,59 @@ app.get('/getAllReminder', (req, res) => {
 });
 
 app.post('/generateReminder', upload.single('photo'), async (req, res) => {
-  const photoPath = req.file.path;
-
-  try {
-    // Upload the image to OpenAI's API to get the file ID
-    const fileResponse = await openai.files.create({
-      purpose: 'vision',
-      file: fs.createReadStream(photoPath)
-    });
-
-    const fileId = fileResponse.id;
-
-    // Use OpenAI to generate reminder message and time
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: "I will send you a photo that contains handwritten reminder name and date and time. You have to return JSON type, example:\n{\n  \"reminderMsg\": \"Test Reminder\",\n  \"remindAt\": \"2024-07-01T18:30:00.000Z\"\n}\n"
-            },
-            {
-              type: 'image_file',
-              image_file: {
-                file_id: fileId,
-                purpose: 'vision'
-              }
-            }
-          ]
-        }
-      ],
-      temperature: 1,
-      max_tokens: 256,
-      top_p: 1,
-      frequency_penalty: 0,
-      presence_penalty: 0
-    });
-
-    let result;
+  console.log("Received request to generate reminder");
+  if (req.file) {
+    console.log("File received:", req.file);
     try {
-      console.log(response.choices[0]);
-      //result = JSON.parse(response.choices[0].message.content);
-    } catch (parseError) {
-      console.error('Error parsing JSON:', parseError);
-      return res.status(500).send('Error parsing response from OpenAI');
-    }
+      // Read the file and convert it to base64
+      const imageBuffer = await fs.readFile(req.file.path);
+      const base64Image = imageBuffer.toString('base64');
 
-    res.send(result);
-  } catch (error) {
-    console.error('Error generating reminder:', error);
-    res.status(500).send('Error generating reminder');
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "user",
+            content: [
+              { 
+                type: "text", 
+                text: "Analyze the image and extract the reminder message and date/time. Return a JSON object with 'reminderMsg' and 'remindAt' fields. The 'remindAt' should be in ISO 8601 format (YYYY-MM-DDTHH:mm:ss.sssZ). If the year is not specified, assume the current year. If the time is not specified, assume 09:00 AM. Return ONLY the JSON object, without any markdown formatting or additional text." 
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:image/${req.file.mimetype};base64,${base64Image}`
+                }
+              }
+            ]
+          }
+        ],
+        max_tokens: 300
+      });
+
+      console.log("OpenAI Response:", response.choices[0].message.content);
+
+      // Remove any non-JSON characters and parse the response
+      const jsonString = response.choices[0].message.content.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+      const reminderData = JSON.parse(jsonString);
+
+      // Delete the uploaded file after processing
+      await fs.unlink(req.file.path);
+
+      res.json({
+        message: "Reminder generated",
+        reminder: reminderData
+      });
+
+    } catch (error) {
+      console.error("Error processing image with OpenAI:", error);
+      res.status(500).send("Error processing image");
+    }
+  } else {
+    console.log("No file received");
+    res.status(400).send('Image upload failed!');
   }
 });
-
 
 app.post('/addReminder', (req, res) => {
   const { reminderMsg, remindAt } = req.body;

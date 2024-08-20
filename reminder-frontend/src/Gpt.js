@@ -1,40 +1,72 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import './Gpt.css'; // Make sure to create this CSS file
 
-const Gpt = () => {
+const Gpt = ({ onReminderAdded }) => {
   const [photo, setPhoto] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleFileChange = (e) => {
-    setPhoto(e.target.files[0]);
+    const file = e.target.files[0];
+    setPhoto(file);
+    setPreviewUrl(URL.createObjectURL(file));
   };
 
-  const addReminder = () => {
+  const addReminder = async () => {
+    if (!photo) {
+      alert('Please select an image first');
+      return;
+    }
+
+    setIsLoading(true);
     const formData = new FormData();
     formData.append('photo', photo);
 
-    axios.post("http://localhost:9000/generateReminder", formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
-    }).then(res => {
-      const { reminderMsg, remindAt } = res.data;
-      axios.post("http://localhost:9000/addReminder", { reminderMsg, remindAt })
-        .then(res => {
-          console.log(res.data);
-          // Handle the response as needed
-        });
-    });
+    try {
+      const res = await axios.post("http://localhost:9000/generateReminder", formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
 
-    setPhoto(null);
+      console.log("Response from server:", res.data);
+      
+      // Add the generated reminder
+      const { reminderMsg, remindAt } = res.data.reminder;
+      await axios.post("http://localhost:9000/addReminder", { reminderMsg, remindAt });
+      
+      onReminderAdded(); // Refresh the reminder list
+      setPhoto(null);
+      setPreviewUrl(null);
+      alert(`Reminder added: ${reminderMsg} at ${new Date(remindAt).toLocaleString()}`);
+    } catch (error) {
+      console.error('Error processing image:', error);
+      alert('Failed to process image. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
-    <div>
+    <div className="gpt-container">
+      <h2>Add Reminder from Image</h2>
       <input
         type="file"
+        accept="image/*"
         onChange={handleFileChange}
+        className="file-input"
       />
-      <button onClick={addReminder}>Add Reminder</button>
+      {previewUrl && (
+        <div className="image-preview-container">
+          <img src={previewUrl} alt="Preview" className="preview-image" />
+        </div>
+      )}
+      <button 
+        onClick={addReminder} 
+        disabled={!photo || isLoading}
+        className="add-button"
+      >
+        {isLoading ? 'Processing Image...' : 'Add Reminder from Image'}
+      </button>
     </div>
   );
 };

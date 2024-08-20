@@ -1,0 +1,46 @@
+.gpt-container {
+    max-width: 500px;
+    margin: 0 auto;
+    padding: 20px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+  }
+  
+  .file-input {
+    display: block;
+    margin-bottom: 20px;
+  }
+  
+  .image-preview-container {
+    max-width: 100%;
+    height: 300px;
+    overflow: hidden;
+    margin-bottom: 20px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+  }
+  
+  .preview-image {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+  
+  .add-button {
+    background-color: #4CAF50;
+    border: none;
+    color: white;
+    padding: 15px 32px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    margin: 4px 2px;
+    cursor: pointer;
+    border-radius: 4px;
+  }
+  
+  .add-button:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+  }
