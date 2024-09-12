@@ -1,6 +1,6 @@
 import React, { useState, useContext } from 'react';
 import axios from 'axios';
-import './Gpt.css'; // Make sure to create this CSS file
+import './Gpt.css';
 import { AuthContext } from './AuthContext';
 
 const Gpt = ({ onReminderAdded }) => {
@@ -24,28 +24,22 @@ const Gpt = ({ onReminderAdded }) => {
     setIsLoading(true);
     const formData = new FormData();
     formData.append('photo', photo);
+    formData.append('userId', authState.user.id);  // Add this line
   
     try {
       const res = await axios.post("http://localhost:9000/generateReminder", formData, {
         headers: { 
           'Content-Type': 'multipart/form-data',
-          'Authorization': `Bearer ${authState.token}`  // Add this line
+          'Authorization': `Bearer ${authState.token}`
         }
       });
   
       console.log("Response from server:", res.data);
       
-      // Add the generated reminder
-      const { reminderMsg, remindAt } = res.data.reminder;
-      await axios.post("http://localhost:9000/addReminder", 
-        { reminderMsg, remindAt },
-        { headers: { Authorization: `Bearer ${authState.token}` } }  // Add this line
-      );
-      
       onReminderAdded();
       setPhoto(null);
       setPreviewUrl(null);
-      alert(`Reminder added: ${reminderMsg} at ${new Date(remindAt).toLocaleString()}`);
+      alert(`Reminder added: ${res.data.reminder.reminderMsg} at ${new Date(res.data.reminder.remindAt).toLocaleString()}`);
     } catch (error) {
       console.error('Error processing image:', error);
       alert('Failed to process image. Please try again.');
@@ -53,6 +47,7 @@ const Gpt = ({ onReminderAdded }) => {
       setIsLoading(false);
     }
   };
+
 
   return (
     <div className="gpt-container">
