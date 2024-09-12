@@ -21,7 +21,7 @@ mongoose.set('strictQuery', true);
 
 // DB config
 mongoose.connect(
-  'mongodb://localhost:27017/reminderAppDB',
+  'mongodb+srv://itssr:Qwerty123@cluster1.hbgt3yu.mongodb.net/reminderAppDB',
   {
     useNewUrlParser: true,
     useUnifiedTopology: true,
@@ -123,7 +123,7 @@ app.post('/generateReminder', upload.single('photo'), async (req, res) => {
             content: [
               { 
                 type: "text", 
-                text: "Analyze the image and extract the reminder message and date/time. Return a JSON object with 'reminderMsg' and 'remindAt' fields. The 'remindAt' should be in ISO 8601 format (YYYY-MM-DDTHH:mm:ss.sssZ). If the year is not specified, assume the current year. If the time is not specified, assume 09:00 AM. Return ONLY the JSON object, without any markdown formatting or additional text." 
+                text: "Analyze the image and extract the reminder message and date/time. Return a JSON object with 'reminderMsg' and 'remindAt' fields. The 'remindAt' should be in ISO 8601 format (YYYY-MM-DDTHH:mm:ss.sssZ). If the year is not specified, assume the current year. If the time is not specified, assume 09:00 AM.But most probably it will be present, so clearly read the date and time. Return ONLY the JSON object, without any markdown formatting or additional text." 
               },
               {
                 type: "image_url",
@@ -146,9 +146,19 @@ app.post('/generateReminder', upload.single('photo'), async (req, res) => {
       // Delete the uploaded file after processing
       await fs.unlink(req.file.path);
 
+      // Create and save the reminder
+      const reminder = new Reminder({
+        reminderMsg: reminderData.reminderMsg,
+        remindAt: reminderData.remindAt,
+        isReminded: false,
+        userId: req.body.userId  // Add this line
+      });
+
+      await reminder.save();
+
       res.json({
-        message: "Reminder generated",
-        reminder: reminderData
+        message: "Reminder generated and saved",
+        reminder: reminder
       });
 
     } catch (error) {
