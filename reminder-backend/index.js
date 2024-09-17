@@ -123,8 +123,18 @@ app.post('/generateReminder', upload.single('photo'), async (req, res) => {
             content: [
               { 
                 type: "text", 
-                text: "Analyze the image and extract the reminder message and date/time. Return a JSON object with 'reminderMsg' and 'remindAt' fields. The 'remindAt' should be in ISO 8601 format (YYYY-MM-DDTHH:mm:ss.sssZ). If the year is not specified, assume the current year. If the time is not specified, assume 09:00 AM.But most probably it will be present, so clearly read the date and time. Return ONLY the JSON object, without any markdown formatting or additional text." 
-              },
+                text: `Analyze the image and extract the reminder message and date/time information. Return a JSON object with the following fields:
+      - 'reminderMsg' for the reminder message.
+      - 'remindAt' for the reminder time.
+
+      Ensure the following when generating the output:
+      1. The 'remindAt' field should be in ISO 8601 format (YYYY-MM-DDTHH:mm:ss.sss without a timezone suffix like 'Z').
+      2. If a date is mentioned but no year is specified, assume the current year.
+      3. If no time is mentioned, assume 09:00 AM by default.
+      4. If the time is provided, ensure it reflects exactly what is mentioned (e.g., if '7 AM' is mentioned, it should be represented as 07:00:00).
+
+      Return only the JSON object, without any additional text or markdown.`
+    },
               {
                 type: "image_url",
                 image_url: {
