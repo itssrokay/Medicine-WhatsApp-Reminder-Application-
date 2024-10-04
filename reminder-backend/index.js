@@ -72,6 +72,11 @@ const openai = new OpenAI({
 
 const jwt = require('jsonwebtoken'); // Add this at the top of your file
 
+app.get('/test', (req, res) => {
+  res.send('Backend is working!');
+});
+
+
 app.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
